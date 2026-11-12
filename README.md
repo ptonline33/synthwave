@@ -51,6 +51,12 @@ python3 -m http.server 8080
 
 Install it from the browser menu (or the **Install app** button when the browser offers it). Once installed it works with no connection.
 
+## Deployment
+
+- Repository: [github.com/ptonline33/synthwave](https://github.com/ptonline33/synthwave) (branch `main`).
+- Vercel project `synthwave` in team `omarchy1`, connected to the GitHub repo: every push to `main` deploys production automatically.
+- Static site, no build step. `vercel.json` only adds security headers and `no-cache` for `sw.js`.
+
 ## Notes
 
 - Playback needs a user gesture to start audio (browser autoplay policy) — press Play.
