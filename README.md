@@ -53,8 +53,11 @@ Install it from the browser menu (or the **Install app** button when the browser
 
 ## Deployment
 
+**Live:** <https://synthwave-omarchy1.vercel.app>
+
 - Repository: [github.com/ptonline33/synthwave](https://github.com/ptonline33/synthwave) (branch `main`).
-- Vercel project `synthwave` in team `omarchy1`, connected to the GitHub repo: every push to `main` deploys production automatically.
+- Vercel project `synthwave` in team `omarchy1`, connected to the GitHub repo: every push to `main` deploys production automatically. Deployment SSO protection is disabled so the app is public.
+- The short `synthwave.vercel.app` belongs to someone else, so the team-scoped alias is the production URL.
 - Static site, no build step. `vercel.json` only adds security headers and `no-cache` for `sw.js`.
 
 ## Notes
