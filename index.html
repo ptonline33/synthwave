@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Synthwave Generator</title>
+  <meta name="description" content="Generate endless synthwave tracks and neon sunset scenes. Runs entirely offline in your browser.">
+  <meta name="theme-color" content="#0b051c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-mode="both">
+  <header class="bar">
+    <div class="logo"><span class="mark">&#9698;&#9699;</span> SYNTHWAVE <span class="sub">GENERATOR</span></div>
+    <div class="modes" role="group" aria-label="Output mode">
+      <button type="button" class="seg" data-mode="both" aria-pressed="true">Both</button>
+      <button type="button" class="seg" data-mode="audio" aria-pressed="false">Audio only</button>
+      <button type="button" class="seg" data-mode="visual" aria-pressed="false">Visuals only</button>
+    </div>
+    <button id="installBtn" class="ghost" type="button" hidden>Install app</button>
+  </header>
+
+  <main>
+    <section class="panel" aria-label="Generator controls">
+      <div class="transport">
+        <button id="playBtn" class="play" type="button">PLAY</button>
+        <button id="genBtn" class="btn" type="button">Generate</button>
+      </div>
+      <p id="hint" class="hint" hidden></p>
+
+      <div class="group">
+        <div class="group-title">SEED <span class="muted">- a track's fingerprint</span></div>
+        <div class="seed-row">
+          <input id="seedInput" type="text" inputmode="numeric" aria-label="Seed" spellcheck="false">
+          <button id="diceBtn" class="btn small" type="button" title="New seed">New seed</button>
+          <button id="copyBtn" class="btn small" type="button">Copy link</button>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <label class="field">KEY
+          <select id="keySel"></select>
+        </label>
+        <label class="field">PROGRESSION
+          <select id="progSel"></select>
+        </label>
+        <label class="field">MOOD
+          <select id="moodSel"></select>
+        </label>
+        <label class="field">TEMPO <span id="bpmVal" class="val">104 BPM</span>
+          <input id="bpmRange" type="range" min="70" max="150" step="1" value="104">
+        </label>
+        <label class="field wide">VOLUME <span id="volVal" class="val">80%</span>
+          <input id="volRange" type="range" min="0" max="100" step="1" value="80">
+        </label>
+      </div>
+
+      <div class="group">
+        <div class="group-title">LAYERS</div>
+        <div class="layers">
+          <label><input type="checkbox" id="layerPad" checked> Pad</label>
+          <label><input type="checkbox" id="layerBass" checked> Bass</label>
+          <label><input type="checkbox" id="layerArp" checked> Arp</label>
+          <label><input type="checkbox" id="layerDrums" checked> Drums</label>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">EXPORT</div>
+        <div class="exports">
+          <button id="wavBtn" class="btn" type="button">WAV (8 bars)</button>
+          <button id="pngBtn" class="btn" type="button">PNG wallpaper</button>
+        </div>
+        <p class="fine">Rendered locally in your browser. Nothing is uploaded.</p>
+      </div>
+
+      <div class="now">
+        <div class="group-title">NOW PLAYING</div>
+        <div class="now-row">
+          <span id="nowChord" class="chord">&mdash;</span>
+          <span id="nowProg" class="muted">Night Drive</span>
+        </div>
+        <div class="now-row">
+          <span id="nowBar" class="muted">Bar 0</span>
+          <span id="badgeMode" class="muted">Audio + visuals</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage" id="stage" aria-label="Neon sunset visualiser">
+      <canvas id="canvas"></canvas>
+      <div class="scanlines" aria-hidden="true"></div>
+      <div class="badges">
+        <span id="badgeSeed">SEED 000000</span>
+        <span id="badgeKey">C MINOR &middot; 104 BPM</span>
+      </div>
+      <div class="stage-note" id="stageNote" hidden>Audio-only mode &mdash; visuals hidden to save battery.</div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Everything is generated locally. Works offline.</span>
+    <span id="offlineBadge" class="offline" hidden>Offline</span>
+    <span class="keys">Space play/stop &middot; G generate</span>
+  </footer>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="audio.js" defer></script>
+  <script src="visuals.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
