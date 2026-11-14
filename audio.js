@@ -16,10 +16,65 @@
     { name: "Chrome Coast", degrees: [5, 6, 0, 0] },
   ];
 
+  /* Each mood is a full arrangement preset: waveforms, filter, mix, groove,
+   * drum tuning and a colour tint that the visualiser picks up. */
   const MOODS = {
-    dream: { label: "Dream", cutoff: 1100, padWave: "sawtooth", bassWave: "sawtooth", arpWave: "triangle", drumGain: 0.55, reverb: 0.44, delay: 0.32, hatDensity: 0.50 },
-    drive: { label: "Drive", cutoff: 2600, padWave: "sawtooth", bassWave: "sawtooth", arpWave: "square",   drumGain: 0.95, reverb: 0.24, delay: 0.22, hatDensity: 1.00 },
-    night: { label: "Night", cutoff: 820,  padWave: "triangle", bassWave: "square",   arpWave: "triangle", drumGain: 0.70, reverb: 0.55, delay: 0.46, hatDensity: 0.65 },
+    dream: {
+      label: "Dream", cutoff: 1050, padWave: "sawtooth", bassWave: "sawtooth", arpWave: "triangle",
+      drumGain: 0.50, reverb: 0.48, delay: 0.34, delayFeedback: 0.38, hatDensity: 0.45,
+      padDetune: 9, padLevel: 0.16, arpDensity: 0.72, arpOctave: 0, shimmer: 1,
+      bassPattern: [0, 0, 0, 0, 0, 0, 12, 0], swing: 0.06,
+      kickStart: 145, kickDecay: 0.36, snareFreq: 1300, snareDecay: 0.24, tint: "#ff9ad0",
+    },
+    drive: {
+      label: "Drive", cutoff: 2700, padWave: "sawtooth", bassWave: "sawtooth", arpWave: "square",
+      drumGain: 0.95, reverb: 0.22, delay: 0.20, delayFeedback: 0.30, hatDensity: 1.00,
+      padDetune: 6, padLevel: 0.15, arpDensity: 0.90, arpOctave: 0, shimmer: 0,
+      bassPattern: [0, 0, 0, 0, 0, 0, 12, 0], swing: 0,
+      kickStart: 170, kickDecay: 0.30, snareFreq: 1700, snareDecay: 0.18, tint: "#ff5ea8",
+    },
+    night: {
+      label: "Night", cutoff: 780, padWave: "triangle", bassWave: "square", arpWave: "triangle",
+      drumGain: 0.65, reverb: 0.55, delay: 0.48, delayFeedback: 0.46, hatDensity: 0.55,
+      padDetune: 12, padLevel: 0.14, arpDensity: 0.55, arpOctave: -12, shimmer: 0,
+      bassPattern: [0, 0, 0, 0, 12, 0, 0, 0], swing: 0.10,
+      kickStart: 130, kickDecay: 0.40, snareFreq: 1000, snareDecay: 0.28, tint: "#a56bff",
+    },
+    sunset: {
+      label: "Sunset", cutoff: 1800, padWave: "sawtooth", bassWave: "triangle", arpWave: "triangle",
+      drumGain: 0.72, reverb: 0.34, delay: 0.28, delayFeedback: 0.34, hatDensity: 0.75,
+      padDetune: 7, padLevel: 0.15, arpDensity: 0.80, arpOctave: 0, shimmer: 1,
+      bassPattern: [0, 0, 0, 0, 0, 0, 7, 0], swing: 0.04,
+      kickStart: 150, kickDecay: 0.33, snareFreq: 1500, snareDecay: 0.22, tint: "#ffae6b",
+    },
+    outrun: {
+      label: "Outrun", cutoff: 3400, padWave: "sawtooth", bassWave: "sawtooth", arpWave: "sawtooth",
+      drumGain: 1.00, reverb: 0.18, delay: 0.16, delayFeedback: 0.26, hatDensity: 1.00,
+      padDetune: 4, padLevel: 0.13, arpDensity: 1.00, arpOctave: 12, shimmer: 1,
+      bassPattern: [0, 0, 12, 0, 0, 0, 12, 0], swing: 0,
+      kickStart: 190, kickDecay: 0.26, snareFreq: 2000, snareDecay: 0.16, tint: "#35e6ff",
+    },
+    vapor: {
+      label: "Vapor", cutoff: 900, padWave: "triangle", bassWave: "triangle", arpWave: "sine",
+      drumGain: 0.30, reverb: 0.62, delay: 0.50, delayFeedback: 0.50, hatDensity: 0.25,
+      padDetune: 14, padLevel: 0.17, arpDensity: 0.38, arpOctave: 12, shimmer: 1,
+      bassPattern: [0, 0, 0, 0, 0, 0, 0, 0], swing: 0.14,
+      kickStart: 120, kickDecay: 0.45, snareFreq: 900, snareDecay: 0.32, tint: "#8af3ff",
+    },
+    chrome: {
+      label: "Chrome", cutoff: 2200, padWave: "sawtooth", bassWave: "square", arpWave: "square",
+      drumGain: 0.95, reverb: 0.42, delay: 0.24, delayFeedback: 0.32, hatDensity: 0.85,
+      padDetune: 5, padLevel: 0.15, arpDensity: 0.85, arpOctave: 0, shimmer: 0,
+      bassPattern: [0, 0, 0, 12, 0, 0, 12, 0], swing: 0.02,
+      kickStart: 165, kickDecay: 0.30, snareFreq: 2200, snareDecay: 0.14, tint: "#ffd36e",
+    },
+    noir: {
+      label: "Noir", cutoff: 700, padWave: "triangle", bassWave: "square", arpWave: "sine",
+      drumGain: 0.55, reverb: 0.40, delay: 0.40, delayFeedback: 0.42, hatDensity: 0.35,
+      padDetune: 10, padLevel: 0.14, arpDensity: 0.45, arpOctave: -12, shimmer: 0,
+      bassPattern: [0, 0, 0, 0, 0, 12, 0, 0], swing: 0.18,
+      kickStart: 110, kickDecay: 0.42, snareFreq: 800, snareDecay: 0.30, tint: "#b06bff",
+    },
   };
 
   function mulberry32(a) {
@@ -88,7 +143,7 @@
     const delaySend = ctx.createGain();
     const delay = ctx.createDelay(2.0);
     delay.delayTime.value = beat * 0.75;
-    const fb = ctx.createGain(); fb.gain.value = 0.34;
+    const fb = ctx.createGain(); fb.gain.value = mood.delayFeedback;
     const delayOut = ctx.createGain(); delayOut.gain.value = mood.delay;
     delaySend.connect(delay);
     delay.connect(fb); fb.connect(delay);
@@ -96,7 +151,7 @@
 
     return {
       ctx, master, reverbSend, delaySend, analyser, mood,
-      wet, delayOut, delay,
+      wet, delayOut, delay, fb,
       noise: noiseBuffer(ctx, 1),
     };
   }
@@ -108,10 +163,12 @@
     filt.type = "lowpass"; filt.Q.value = 0.8;
     filt.frequency.setValueAtTime(g.mood.cutoff * 0.55, t);
     filt.frequency.linearRampToValueAtTime(g.mood.cutoff, t + dur * 0.6);
+    const lvl = g.mood.padLevel;
+    const spread = g.mood.padDetune / 6;
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0.0001, t);
-    amp.gain.exponentialRampToValueAtTime(0.15, t + 0.5);
-    amp.gain.setValueAtTime(0.15, t + dur * 0.7);
+    amp.gain.exponentialRampToValueAtTime(lvl, t + 0.5);
+    amp.gain.setValueAtTime(lvl, t + dur * 0.7);
     amp.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.9);
     filt.connect(amp); amp.connect(g.master); amp.connect(g.reverbSend);
     freqs.forEach((f, i) => {
@@ -119,7 +176,7 @@
         const o = ctx.createOscillator();
         o.type = g.mood.padWave;
         o.frequency.value = mtof(f);
-        o.detune.value = det + (i % 2 ? 3 : -3);
+        o.detune.value = (det + (i % 2 ? 3 : -3)) * spread;
         o.connect(filt);
         o.start(t); o.stop(t + dur + 1.0);
       });
@@ -143,27 +200,39 @@
 
   function arp(g, t, midi, dur, vel) {
     const ctx = g.ctx;
-    const o = ctx.createOscillator(); o.type = g.mood.arpWave; o.frequency.value = mtof(midi);
-    const filt = ctx.createBiquadFilter(); filt.type = "lowpass"; filt.frequency.value = 3600;
+    const decay = Math.min(dur, 0.28);
+    const filt = ctx.createBiquadFilter();
+    filt.type = "lowpass";
+    filt.frequency.value = Math.max(1400, g.mood.cutoff * 1.6);
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0.0001, t);
     amp.gain.exponentialRampToValueAtTime(0.10 * vel, t + 0.005);
-    amp.gain.exponentialRampToValueAtTime(0.0001, t + Math.min(dur, 0.28));
-    o.connect(filt); filt.connect(amp);
+    amp.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    filt.connect(amp);
     amp.connect(g.master); amp.connect(g.delaySend); amp.connect(g.reverbSend);
-    o.start(t); o.stop(t + Math.min(dur, 0.3) + 0.02);
+    const notes = g.mood.shimmer ? [[midi, 1], [midi + 12, 0.42]] : [[midi, 1]];
+    notes.forEach(([n, level]) => {
+      const o = ctx.createOscillator();
+      o.type = g.mood.arpWave;
+      o.frequency.value = mtof(n);
+      const trim = ctx.createGain(); trim.gain.value = level;
+      o.connect(trim); trim.connect(filt);
+      o.start(t); o.stop(t + decay + 0.02);
+    });
   }
 
   function kick(g, t) {
     const ctx = g.ctx;
+    const start = g.mood.kickStart;
+    const decay = g.mood.kickDecay;
     const o = ctx.createOscillator(); o.type = "sine";
-    o.frequency.setValueAtTime(160, t);
-    o.frequency.exponentialRampToValueAtTime(45, t + 0.11);
+    o.frequency.setValueAtTime(start, t);
+    o.frequency.exponentialRampToValueAtTime(start * 0.28, t + 0.11);
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0.9 * g.mood.drumGain, t);
-    amp.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    amp.gain.exponentialRampToValueAtTime(0.0001, t + decay);
     o.connect(amp); amp.connect(g.master);
-    o.start(t); o.stop(t + 0.34);
+    o.start(t); o.stop(t + decay + 0.02);
   }
 
   function noiseHit(g, t, dur, type, freq, gain, sendReverb) {
@@ -181,16 +250,17 @@
   }
 
   function snare(g, t) {
-    noiseHit(g, t, 0.20, "highpass", 1400, 0.35 * g.mood.drumGain, true);
+    const decay = g.mood.snareDecay;
+    noiseHit(g, t, decay, "highpass", g.mood.snareFreq, 0.35 * g.mood.drumGain, true);
     const ctx = g.ctx;
     const o = ctx.createOscillator(); o.type = "triangle";
     o.frequency.setValueAtTime(190, t);
     o.frequency.exponentialRampToValueAtTime(120, t + 0.1);
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0.22 * g.mood.drumGain, t);
-    amp.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    amp.gain.exponentialRampToValueAtTime(0.0001, t + decay * 0.7);
     o.connect(amp); amp.connect(g.master);
-    o.start(t); o.stop(t + 0.16);
+    o.start(t); o.stop(t + decay * 0.8);
   }
 
   function hat(g, t, open) {
@@ -209,13 +279,16 @@
     const bassNote = scaleNote(root, degree) - 12;
     const L = s.layers;
 
+    const M = g.mood;
+    const swing = M.swing || 0;
+
     if (L.pad) pad(g, when, [chord[0], chord[1], chord[2], chord[0] + 12], barDur * 0.95);
 
     if (L.bass) {
-      const pattern = [0, 0, 0, 0, 0, 0, 12, 0];
       for (let i = 0; i < 8; i++) {
-        const n = bassNote + pattern[i] + (rng() < 0.12 ? 12 : 0);
-        bass(g, when + i * beat / 2, n, beat * 0.44);
+        const n = bassNote + M.bassPattern[i] + (rng() < 0.12 ? 12 : 0);
+        const off = i % 2 ? swing * beat / 2 : 0;
+        bass(g, when + i * beat / 2 + off, n, beat * 0.44);
       }
     }
 
@@ -223,10 +296,11 @@
       const shape = [0, 1, 2, 1, 0, 2, 1, 2];
       const oct = [0, 0, 0, 12, 0, 0, 12, 0];
       for (let i = 0; i < 16; i++) {
-        if (rng() < 0.12) continue;
+        if (rng() > M.arpDensity) continue;
         const idx = shape[i % shape.length];
-        const n = chord[idx] + oct[i % oct.length] + 12;
-        arp(g, when + i * beat / 4, n, beat / 4, 0.7 + rng() * 0.5);
+        const n = chord[idx] + oct[i % oct.length] + 12 + M.arpOctave;
+        const off = i % 2 ? swing * beat / 4 : 0;
+        arp(g, when + i * beat / 4 + off, n, beat / 4, 0.7 + rng() * 0.5);
       }
     }
 
@@ -236,7 +310,8 @@
         if (b === 1 || b === 3) snare(g, when + b * beat);
       }
       for (let i = 0; i < 8; i++) {
-        if (rng() < g.mood.hatDensity) hat(g, when + i * beat / 2, i === 7 && rng() < 0.4);
+        const off = i % 2 ? swing * beat / 2 : 0;
+        if (rng() < M.hatDensity) hat(g, when + i * beat / 2 + off, i === 7 && rng() < 0.4);
       }
     }
   }
@@ -291,6 +366,7 @@
         this.g.mood = mood;
         this.g.wet.gain.setTargetAtTime(mood.reverb, now, 0.05);
         this.g.delayOut.gain.setTargetAtTime(mood.delay, now, 0.05);
+        this.g.fb.gain.setTargetAtTime(mood.delayFeedback, now, 0.05);
       }
     }
     async stop() {

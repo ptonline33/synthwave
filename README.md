@@ -15,8 +15,10 @@ Audio and visuals are otherwise independent: you can leave it running as a quiet
 ## What it generates
 
 - **Music** — a repeating chord progression with a detuned pad, a pulsing bass, a 16th-note arpeggio, and a four-on-the-floor drum kit. Kick, snare and hats are synthesised from oscillators and filtered noise; the pad and arp go through a generated convolution reverb and a tempo-synced feedback delay.
-- **Controls** — key (12 minors), 4 progressions, 3 moods (Dream / Drive / Night), tempo 70–150 BPM, volume, and individual Pad / Bass / Arp / Drums layer switches. Changes apply on the next bar while playing.
+- **8 moods** — Dream, Drive, Night, Sunset, Outrun, Vapor, Chrome, Noir. Each is a full arrangement preset: waveforms, filter cutoff, reverb/delay mix, pad detune, arp density and octave, bass pattern, swing, kick/snare tuning and a colour tint for the visualiser. Switching mood applies on the next bar while playing.
+- **Controls** — key (12 minors), 4 progressions, 8 moods, tempo 70–150 BPM, volume, and individual Pad / Bass / Arp / Drums layer switches. Changes apply on the next bar while playing.
 - **Seed** — a number that determines the note choices and the visual palette. The same seed always reproduces the same track and scene. **Generate** makes a whole new track (seed, key, progression, mood, tempo); **New seed** changes only the seed.
+- **Visualiser** — a layered neon sunset: aurora blooms, parallax stars, a scanline sun with bloom and rim light, distant ridges, a seeded city skyline with flickering windows, a wet-floor sun reflection, a depth-faded perspective grid, plus audio-reactive spectrum bars, beat rings, drifting embers and a waveform trace. Finished with film grain, cinematic bars and a vignette. Six palettes; the current mood tints the grid and glow.
 - **Shareable state** — the full configuration lives in the URL (`?s=…&b=…&k=…`), so **Copy link** shares an exact track.
 - **Export** — **WAV (8 bars)** renders offline with `OfflineAudioContext` and downloads a 16-bit WAV; **PNG wallpaper** renders the scene at 1920×1080.
 
@@ -31,7 +33,7 @@ Audio and visuals are otherwise independent: you can leave it running as a quiet
 index.html              app shell + controls
 styles.css              neon control-room theme (light on gradients, dark UI)
 audio.js                SynthAudio: engine, voices, scheduler, WAV encoder
-visuals.js              SynthVisuals: sunset / grid canvas renderer
+visuals.js              SynthVisuals: layered reactive canvas visualiser
 app.js                  state, URL sync, UI wiring, render loop
 sw.js                   offline precache (synthwave-v1)
 manifest.webmanifest    install metadata

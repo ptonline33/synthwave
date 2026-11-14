@@ -9,7 +9,7 @@
   const $ = (id) => document.getElementById(id);
 
   const defaults = () => ({
-    seed: 482913, bpm: 104, key: 0, progression: 0, mood: "drive", volume: 0.8,
+    seed: 482910, bpm: 104, key: 0, progression: 0, mood: "drive", volume: 0.8,
     layers: { pad: true, bass: true, arp: true, drums: true },
     mode: "both", playing: false,
   });
@@ -72,9 +72,12 @@
   }
 
   function updateBadges() {
+    const mood = A.MOODS[state.mood] || A.MOODS.drive;
     $("badgeSeed").textContent = "SEED " + String(state.seed).padStart(6, "0");
     $("badgeKey").textContent = A.KEYS[state.key] + " MINOR · " + state.bpm + " BPM";
+    $("badgeScene").textContent = mood.label.toUpperCase() + " · " + (renderer ? renderer.palette.name : "").toUpperCase();
     $("nowProg").textContent = A.PROGRESSIONS[state.progression].name;
+    $("nowMood").textContent = mood.label;
   }
 
   function syncTransport() {
@@ -84,6 +87,7 @@
   }
 
   function syncUI() {
+    if (renderer) renderer.setMood(A.MOODS[state.mood]);
     $("seedInput").value = String(state.seed);
     $("keySel").value = String(state.key);
     $("progSel").value = String(state.progression);
@@ -230,8 +234,8 @@
     const dt = (now - last) / 1000;
     last = now;
     if (state.mode !== "audio" && renderer) {
-      const energy = state.playing && engine ? renderer.readEnergy(engine.analyser) : 0;
-      renderer.frame(dt, energy, state.bpm);
+      const analyser = state.playing && engine ? engine.analyser : null;
+      renderer.frame(dt, analyser, state.bpm);
     }
     requestAnimationFrame(loop);
   }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-14 — v2: more moods + modern visualiser
+
+- Expanded moods from 3 to **8**: Dream, Drive, Night, Sunset, Outrun, Vapor, Chrome, Noir. Each is a full arrangement preset (waveforms, filter cutoff, reverb/delay mix and feedback, pad detune/level, arp density/octave/shimmer, bass pattern, swing, kick/snare tuning) plus a colour tint the visualiser picks up. `setSettings` now also updates delay feedback when the mood changes.
+- Rewrote the visualiser as a layered modern scene: drifting aurora blooms, parallax stars with flares, haze bands, a bloom-lit scanline sun with rim light, smoothed ridges, a seeded city skyline with flickering windows, a wet-floor sun reflection, a depth-faded perspective grid, audio-reactive spectrum bars, beat rings, drifting embers, a waveform trace, film grain, cinematic bars and a vignette. Added two palettes (Cobalt, Rose) for six total.
+- The analyser now feeds frequency + time-domain data (bass/mid/treble, smoothed energy and beat detection) instead of a single bass number, so the scene reacts in several ways and still animates gently when audio is off.
+- HUD now shows the current mood and palette; the mood select is populated from the expanded `MOODS` table automatically.
+- Bumped `sw.js` to `synthwave-v2`.
+
 ## 2026-11-12 — v1
 
 - Built the Synthwave Generator PWA from scratch: generative Web Audio track engine, reactive canvas sunset/grid visualiser, and a mode switch (Both / Audio only / Visuals only) so audio can be generated without the visuals running.
