@@ -465,6 +465,12 @@
     offline();
 
     window.addEventListener("resize", () => { if (renderer) renderer.resize(); });
+
+    /* Minimising throttles timers to ~1 s. Tell the engine immediately so it
+     * deepens its scheduling buffer and resumes cleanly on return. */
+    document.addEventListener("visibilitychange", () => {
+      if (engine && state.playing) engine.onVisibility(document.hidden);
+    });
   }
 
   async function boot() {

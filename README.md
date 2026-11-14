@@ -36,7 +36,9 @@ Relaxation support only, not a medical device. No HR data leaves the device; not
 
 ## Audio quality
 
-The engine uses a soft tanh limiter, a normalised convolution reverb IR, capped delay feedback, lower voice peaks and a 0.4 s scheduling lookahead that resyncs if the main thread stalls. Canvas work is capped at ~40 fps. Together these remove the crackle that dense bars and a heavy visualiser could cause.
+The engine uses a soft tanh limiter, a normalised convolution reverb IR, capped delay feedback and lower voice peaks so dense bars never hit 0 dBFS. Canvas work is capped at ~40 fps.
+
+Scheduling runs off a **Web Worker clock** (with a `setInterval` fallback) so a heavy canvas frame can't delay it. When the PWA is minimised, browsers throttle timers to ~1 s; the engine then deepens its buffer to 4 s and **fast-forwards the missed bar grid** instead of snapping to "now" — snapping used to schedule 2.4 s bars every 1 s, which overlapped them and crackled. `visibilitychange` fills that buffer immediately, and `statechange`/visibility regain resume a suspended AudioContext. The reverb impulse and wave-shaper are kept deliberately light for mobile CPUs.
 
 ## Keyboard
 

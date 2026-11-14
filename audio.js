@@ -140,14 +140,14 @@
     /* Soft limiter instead of a hard digital clip. Dense bars (pad tails +
      * reverb + delay feedback) used to slam into 0 dBFS and crackle. */
     const shaper = ctx.createWaveShaper();
-    const curve = new Float32Array(2048);
+    const curve = new Float32Array(1024);
     const k = Math.tanh(1.5);
     for (let i = 0; i < curve.length; i++) {
       const x = (i / (curve.length - 1)) * 2 - 1;
       curve[i] = Math.tanh(x * 1.5) / k;
     }
     shaper.curve = curve;
-    shaper.oversample = "2x";
+    shaper.oversample = "none";   // cheaper on mobile; the soft curve barely aliases
     const trim = ctx.createGain(); trim.gain.value = 0.92;
 
     const analyser = ctx.createAnalyser();
@@ -157,7 +157,7 @@
 
     const reverbSend = ctx.createGain();
     const conv = ctx.createConvolver();
-    conv.buffer = impulse(ctx, 2.6, 2.4);
+    conv.buffer = impulse(ctx, 1.8, 2.8);
     const wet = ctx.createGain(); wet.gain.value = wetLevel(mood);
     reverbSend.connect(conv); conv.connect(wet); wet.connect(master);
 
@@ -341,47 +341,106 @@
   class SynthEngine {
     constructor(settings) {
       this.settings = settings;
-      this.ctx = null; this.g = null; this.timer = null;
+      this.ctx = null; this.g = null; this.timer = null; this.clock = null;
       this.bar = 0; this.nextBarTime = 0;
       this.playing = false; this.onBar = null;
+      this.lookahead = 1.5;          // seconds queued while visible
+      this.hiddenLookahead = 4.0;    // extra cushion when minimised
+      this.resumeTries = 0;
     }
+
+    /* A Worker clock is immune to main-thread jank (canvas frames, layout).
+     * Hidden tabs throttle timers to ~1 s, so the lookahead below must stay
+     * bigger than that. Falls back to a plain interval if Workers are blocked. */
+    startClock() {
+      if (this.clock || this.timer) return;
+      if (typeof global.Worker === "function") {
+        try {
+          const src = "let id=setInterval(()=>postMessage('tick'),25);" +
+                      "onmessage=e=>{if(e.data==='stop')clearInterval(id)}";
+          const url = URL.createObjectURL(new Blob([src], { type: "application/javascript" }));
+          this.clock = new Worker(url);
+          URL.revokeObjectURL(url);
+          this.clock.onmessage = () => this.tick();
+          return;
+        } catch (_) { this.clock = null; }
+      }
+      this.timer = setInterval(() => this.tick(), 25);
+    }
+    stopClock() {
+      if (this.clock) { try { this.clock.terminate(); } catch (_) {} this.clock = null; }
+      if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    }
+
     async play() {
       if (this.playing) return;
       const Ctx = global.AudioContext || global.webkitAudioContext;
       if (!Ctx) throw new Error("Web Audio is not supported in this browser.");
       this.ctx = new Ctx();
-      // resume() is fire-and-forget: browsers differ on when it resolves, and
-      // scheduled audio plays as soon as the context actually starts.
       try {
         const resumed = this.ctx.resume();
         if (resumed && typeof resumed.catch === "function") resumed.catch(() => {});
       } catch (_) {}
+      this.ctx.onstatechange = () => {
+        if (!this.playing || !this.ctx) return;
+        const st = this.ctx.state;
+        const hidden = typeof document !== "undefined" && document.hidden;
+        if ((st === "suspended" || st === "interrupted") && !hidden && this.resumeTries++ < 4) {
+          try {
+            const r = this.ctx.resume();
+            if (r && typeof r.catch === "function") r.catch(() => {});
+          } catch (_) {}
+        }
+      };
       this.g = buildGraph(this.ctx, this.settings);
       this.bar = 0;
       this.nextBarTime = this.ctx.currentTime + 0.08;
       this.playing = true;
-      this.timer = setInterval(() => this.tick(), 25);
+      this.resumeTries = 0;
+      this.startClock();
       this.tick();
     }
+
     tick() {
       if (!this.playing || !this.ctx) return;
       const s = this.settings;
       const barDur = (60 / s.bpm) * 4;
       const now = this.ctx.currentTime;
-      /* If the main thread stalled (heavy canvas frame, backgrounded tab),
-       * never schedule notes in the past - Web Audio would fire the whole
-       * backlog at once, which is the main source of the crackle. */
-      if (this.nextBarTime < now + 0.02) this.nextBarTime = now + 0.06;
-      const LOOKAHEAD = 0.4;   // generous cushion against main-thread jank
+      const horizon = now + (typeof document !== "undefined" && document.hidden
+        ? this.hiddenLookahead : this.lookahead);
+
+      /* Fast-forward over bars we missed while throttled, ADVANCING THE GRID
+       * instead of snapping to `now`. Snapping used to make a 1 s-throttled
+       * hidden tab schedule 2.4 s bars every 1 s: they overlapped, piled up
+       * and crackled. Skipping keeps every bar on its original beat. */
+      let skipped = 0;
+      while (this.nextBarTime < now - 0.005 && skipped++ < 128) {
+        this.nextBarTime += barDur;
+        this.bar++;
+      }
       let guard = 0;
-      while (this.nextBarTime < now + LOOKAHEAD && guard++ < 4) {
+      while (this.nextBarTime < horizon && guard++ < 8) {
+        const at = Math.max(this.nextBarTime, now + 0.005);
         const rng = mulberry32((s.seed + this.bar * 7919) >>> 0);
-        scheduleBar(this.ctx, this.g, s, this.bar, this.nextBarTime, rng);
-        if (this.onBar) this.onBar(this.bar, this.nextBarTime);
+        scheduleBar(this.ctx, this.g, s, this.bar, at, rng);
+        if (this.onBar) this.onBar(this.bar, at);
         this.bar++;
         this.nextBarTime += barDur;
       }
     }
+
+    onVisibility(hidden) {
+      if (!this.playing || !this.ctx) return;
+      if (!hidden) {
+        this.resumeTries = 0;
+        try {
+          const r = this.ctx.resume();
+          if (r && typeof r.catch === "function") r.catch(() => {});
+        } catch (_) {}
+      }
+      this.tick();   // fill the deeper buffer immediately on minimise
+    }
+
     setSettings(next) {
       const prev = this.settings;
       this.settings = next;
@@ -399,8 +458,9 @@
     }
     async stop() {
       this.playing = false;
-      if (this.timer) { clearInterval(this.timer); this.timer = null; }
+      this.stopClock();
       const ctx = this.ctx;
+      if (ctx) ctx.onstatechange = null;
       this.ctx = null; this.g = null;
       if (ctx) { try { await ctx.close(); } catch (_) {} }
     }

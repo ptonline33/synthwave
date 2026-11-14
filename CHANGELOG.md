@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-14 — v4: background-audio crackle fix
+
+- Fixed crackling when the PWA is minimised. The old resync snapped `nextBarTime` back to `now` on every late tick; with hidden-tab timer throttling (~1 s) that scheduled 2.4 s bars roughly 1 s apart, overlapping them into a dense burst. The scheduler now **fast-forwards the missed bar grid** (advancing bar index and time by whole bar durations) and never schedules a note in the past.
+- Moved the scheduling clock into a **Web Worker** (Blob-based, `setInterval` fallback) so main-thread canvas work can't delay it.
+- Adaptive lookahead: 1.5 s while visible (controls stay responsive), 4.0 s while hidden (survives 1 s throttling). `visibilitychange` fills the deeper buffer immediately; `onstatechange` and visibility regain resume a suspended/interrupted AudioContext with a retry guard.
+- Reduced mobile CPU load: reverb impulse 2.6 s → 1.8 s, wave-shaper curve 2048 → 1024 with no oversampling.
+- Bumped `sw.js` to `synthwave-v4`.
+
 ## 2026-11-14 — v3: Downshift + crackle fix
 
 - Added a fourth **Downshift** mode: a 4s-in / 6s-out breathing ring, a slow tempo ramp toward ~60 BPM, and the Vapor preset with bass/drums muted. Session timer, live BPM readout, trend sparkline and delta from the session baseline.

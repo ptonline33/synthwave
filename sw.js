@@ -1,6 +1,6 @@
 /* Synthwave Generator service worker.
  * All app assets are local, so the whole generator works with no network. */
-const VERSION = "synthwave-v3";
+const VERSION = "synthwave-v4";
 const SHELL = [
   "./",
   "index.html",
