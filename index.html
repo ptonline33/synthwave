@@ -21,6 +21,7 @@
       <button type="button" class="seg" data-mode="both" aria-pressed="true">Both</button>
       <button type="button" class="seg" data-mode="audio" aria-pressed="false">Audio only</button>
       <button type="button" class="seg" data-mode="visual" aria-pressed="false">Visuals only</button>
+      <button type="button" class="seg" data-mode="downshift" aria-pressed="false">Downshift</button>
     </div>
     <button id="installBtn" class="ghost" type="button" hidden>Install app</button>
   </header>
@@ -32,6 +33,29 @@
         <button id="genBtn" class="btn" type="button">Generate</button>
       </div>
       <p id="hint" class="hint" hidden></p>
+
+      <div class="downshift" id="downshiftPanel" hidden>
+        <div class="group-title">DOWNSHIFT <span class="muted">guided calm session</span></div>
+        <div class="hr-readout">
+          <span id="hrValue" class="hr-bpm">--</span>
+          <span class="muted">BPM</span>
+          <span id="hrDelta" class="muted"></span>
+        </div>
+        <canvas id="hrChart" width="300" height="46" aria-label="Heart-rate trend"></canvas>
+        <div class="hr-sources">
+          <button id="hrConnectBtn" class="btn small" type="button">Connect sensor</button>
+          <div class="manual-row">
+            <input id="manualBpm" type="number" min="25" max="240" placeholder="BPM" aria-label="Manual heart rate">
+            <button id="manualSetBtn" class="btn small" type="button">Set</button>
+          </div>
+        </div>
+        <p id="hrStatus" class="fine">No sensor. Glance at your Fitbit and type your BPM, or use the breathing pacer alone.</p>
+        <div class="hr-row">
+          <span id="sessionTimer" class="muted">00:00</span>
+          <span id="sessionTarget" class="muted">Target ~60 BPM</span>
+        </div>
+        <p class="fine">Relaxation support only, not a medical device. Stop if you feel unwell.</p>
+      </div>
 
       <div class="group">
         <div class="group-title">SEED <span class="muted">- a track's fingerprint</span></div>
@@ -117,6 +141,7 @@
 
   <script src="audio.js" defer></script>
   <script src="visuals.js" defer></script>
+  <script src="hr.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

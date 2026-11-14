@@ -22,6 +22,22 @@ Audio and visuals are otherwise independent: you can leave it running as a quiet
 - **Shareable state** — the full configuration lives in the URL (`?s=…&b=…&k=…`), so **Copy link** shares an exact track.
 - **Export** — **WAV (8 bars)** renders offline with `OfflineAudioContext` and downloads a 16-bit WAV; **PNG wallpaper** renders the scene at 1920×1080.
 
+## Downshift (calm session)
+
+A fourth mode that uses the generator as a relaxation tool: a **4s-in / 6s-out breathing ring** (~6 breaths/min), a slow tempo ramp toward ~60 BPM, and the Vapor preset with bass and drums muted.
+
+Three heart-rate input tiers, best available wins:
+
+1. **Live BLE HR** — standard Heart Rate Service (`0x180D` / `0x2A37`) via Web Bluetooth. Shows live BPM, a trend sparkline, delta from the session start, and drives the music slower as your HR falls. Needs Chrome/Edge over HTTPS and a sensor that broadcasts standard HR.
+2. **Manual BPM** — type the number off your wrist. This is the practical bridge for a **Fitbit Inspire 3**: it has continuous HR tracking but no live HR broadcast (Google's HR Sharing list is Fitbit Air/Edge, Charge 6 and Pixel Watch 2+), and the legacy Fitbit Web API was switched off on 2 Nov 2026.
+3. **No sensor** — breathing pacer + tempo ramp alone. Works everywhere, including iOS.
+
+Relaxation support only, not a medical device. No HR data leaves the device; nothing is uploaded.
+
+## Audio quality
+
+The engine uses a soft tanh limiter, a normalised convolution reverb IR, capped delay feedback, lower voice peaks and a 0.4 s scheduling lookahead that resyncs if the main thread stalls. Canvas work is capped at ~40 fps. Together these remove the crackle that dense bars and a heavy visualiser could cause.
+
 ## Keyboard
 
 - `Space` — play / stop
@@ -34,7 +50,8 @@ index.html              app shell + controls
 styles.css              neon control-room theme (light on gradients, dark UI)
 audio.js                SynthAudio: engine, voices, scheduler, WAV encoder
 visuals.js              SynthVisuals: layered reactive canvas visualiser
-app.js                  state, URL sync, UI wiring, render loop
+hr.js                   SynthHR: Web Bluetooth Heart Rate Service reader
+app.js                  state, URL sync, Downshift session, render loop
 sw.js                   offline precache (synthwave-v1)
 manifest.webmanifest    install metadata
 icons/                  192, 512 and maskable 512 PNGs

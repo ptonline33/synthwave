@@ -1,12 +1,13 @@
 /* Synthwave Generator service worker.
  * All app assets are local, so the whole generator works with no network. */
-const VERSION = "synthwave-v2";
+const VERSION = "synthwave-v3";
 const SHELL = [
   "./",
   "index.html",
   "styles.css",
   "audio.js",
   "visuals.js",
+  "hr.js",
   "app.js",
   "manifest.webmanifest",
   "icons/icon-192.png",

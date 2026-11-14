@@ -116,35 +116,56 @@
     const buf = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let c = 0; c < 2; c++) {
       const d = buf.getChannelData(c);
-      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+      // Normalise the noise IR: an unscaled 2.6 s impulse makes the convolver
+      // output far too hot, which shows up as crackle on dense passages.
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay) * 0.42;
     }
     return buf;
   }
+
+  const wetLevel = (m) => m.reverb * 0.8;
+  const delayLevel = (m) => m.delay * 0.85;
+  const feedbackLevel = (m) => Math.min(m.delayFeedback, 0.42);
 
   function buildGraph(ctx, s) {
     const mood = MOODS[s.mood] || MOODS.drive;
     const beat = 60 / s.bpm;
 
     const master = ctx.createGain();
-    master.gain.value = s.volume * 0.85;
+    master.gain.value = s.volume * 0.68;
     const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -14; comp.knee.value = 20; comp.ratio.value = 6;
-    comp.attack.value = 0.004; comp.release.value = 0.22;
+    comp.threshold.value = -18; comp.knee.value = 24; comp.ratio.value = 8;
+    comp.attack.value = 0.003; comp.release.value = 0.25;
+
+    /* Soft limiter instead of a hard digital clip. Dense bars (pad tails +
+     * reverb + delay feedback) used to slam into 0 dBFS and crackle. */
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(2048);
+    const k = Math.tanh(1.5);
+    for (let i = 0; i < curve.length; i++) {
+      const x = (i / (curve.length - 1)) * 2 - 1;
+      curve[i] = Math.tanh(x * 1.5) / k;
+    }
+    shaper.curve = curve;
+    shaper.oversample = "2x";
+    const trim = ctx.createGain(); trim.gain.value = 0.92;
+
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.8;
-    master.connect(comp); comp.connect(analyser); analyser.connect(ctx.destination);
+    master.connect(comp); comp.connect(shaper); shaper.connect(trim);
+    trim.connect(analyser); analyser.connect(ctx.destination);
 
     const reverbSend = ctx.createGain();
     const conv = ctx.createConvolver();
     conv.buffer = impulse(ctx, 2.6, 2.4);
-    const wet = ctx.createGain(); wet.gain.value = mood.reverb;
+    const wet = ctx.createGain(); wet.gain.value = wetLevel(mood);
     reverbSend.connect(conv); conv.connect(wet); wet.connect(master);
 
     const delaySend = ctx.createGain();
     const delay = ctx.createDelay(2.0);
     delay.delayTime.value = beat * 0.75;
-    const fb = ctx.createGain(); fb.gain.value = mood.delayFeedback;
-    const delayOut = ctx.createGain(); delayOut.gain.value = mood.delay;
+    const fb = ctx.createGain(); fb.gain.value = feedbackLevel(mood);
+    const delayOut = ctx.createGain(); delayOut.gain.value = delayLevel(mood);
     delaySend.connect(delay);
     delay.connect(fb); fb.connect(delay);
     delay.connect(delayOut); delayOut.connect(master); delayOut.connect(reverbSend);
@@ -163,7 +184,7 @@
     filt.type = "lowpass"; filt.Q.value = 0.8;
     filt.frequency.setValueAtTime(g.mood.cutoff * 0.55, t);
     filt.frequency.linearRampToValueAtTime(g.mood.cutoff, t + dur * 0.6);
-    const lvl = g.mood.padLevel;
+    const lvl = g.mood.padLevel * 0.82;
     const spread = g.mood.padDetune / 6;
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0.0001, t);
@@ -192,7 +213,7 @@
     filt.frequency.exponentialRampToValueAtTime(240, t + dur * 0.9);
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0.0001, t);
-    amp.gain.exponentialRampToValueAtTime(0.24, t + 0.012);
+    amp.gain.exponentialRampToValueAtTime(0.19, t + 0.012);
     amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(filt); sub.connect(filt); filt.connect(amp); amp.connect(g.master);
     o.start(t); sub.start(t); o.stop(t + dur + 0.02); sub.stop(t + dur + 0.02);
@@ -206,7 +227,7 @@
     filt.frequency.value = Math.max(1400, g.mood.cutoff * 1.6);
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0.0001, t);
-    amp.gain.exponentialRampToValueAtTime(0.10 * vel, t + 0.005);
+    amp.gain.exponentialRampToValueAtTime(0.085 * vel, t + 0.005);
     amp.gain.exponentialRampToValueAtTime(0.0001, t + decay);
     filt.connect(amp);
     amp.connect(g.master); amp.connect(g.delaySend); amp.connect(g.reverbSend);
@@ -229,7 +250,7 @@
     o.frequency.setValueAtTime(start, t);
     o.frequency.exponentialRampToValueAtTime(start * 0.28, t + 0.11);
     const amp = ctx.createGain();
-    amp.gain.setValueAtTime(0.9 * g.mood.drumGain, t);
+    amp.gain.setValueAtTime(0.75 * g.mood.drumGain, t);
     amp.gain.exponentialRampToValueAtTime(0.0001, t + decay);
     o.connect(amp); amp.connect(g.master);
     o.start(t); o.stop(t + decay + 0.02);
@@ -251,7 +272,7 @@
 
   function snare(g, t) {
     const decay = g.mood.snareDecay;
-    noiseHit(g, t, decay, "highpass", g.mood.snareFreq, 0.35 * g.mood.drumGain, true);
+    noiseHit(g, t, decay, "highpass", g.mood.snareFreq, 0.28 * g.mood.drumGain, true);
     const ctx = g.ctx;
     const o = ctx.createOscillator(); o.type = "triangle";
     o.frequency.setValueAtTime(190, t);
@@ -265,7 +286,7 @@
 
   function hat(g, t, open) {
     noiseHit(g, t, open ? 0.18 : 0.05, "highpass", 8000,
-      (open ? 0.14 : 0.10) * g.mood.drumGain, false);
+      (open ? 0.11 : 0.08) * g.mood.drumGain, false);
   }
 
   /* ------------------------------ one bar ------------------------------ */
@@ -346,7 +367,14 @@
       if (!this.playing || !this.ctx) return;
       const s = this.settings;
       const barDur = (60 / s.bpm) * 4;
-      while (this.nextBarTime < this.ctx.currentTime + 0.15) {
+      const now = this.ctx.currentTime;
+      /* If the main thread stalled (heavy canvas frame, backgrounded tab),
+       * never schedule notes in the past - Web Audio would fire the whole
+       * backlog at once, which is the main source of the crackle. */
+      if (this.nextBarTime < now + 0.02) this.nextBarTime = now + 0.06;
+      const LOOKAHEAD = 0.4;   // generous cushion against main-thread jank
+      let guard = 0;
+      while (this.nextBarTime < now + LOOKAHEAD && guard++ < 4) {
         const rng = mulberry32((s.seed + this.bar * 7919) >>> 0);
         scheduleBar(this.ctx, this.g, s, this.bar, this.nextBarTime, rng);
         if (this.onBar) this.onBar(this.bar, this.nextBarTime);
@@ -359,14 +387,14 @@
       this.settings = next;
       if (!this.g || !this.ctx) return;
       const now = this.ctx.currentTime;
-      if (next.volume !== prev.volume) this.g.master.gain.setTargetAtTime(next.volume * 0.85, now, 0.02);
+      if (next.volume !== prev.volume) this.g.master.gain.setTargetAtTime(next.volume * 0.68, now, 0.02);
       if (next.bpm !== prev.bpm) this.g.delay.delayTime.setTargetAtTime((60 / next.bpm) * 0.75, now, 0.05);
       if (next.mood !== prev.mood) {
         const mood = MOODS[next.mood] || MOODS.drive;
         this.g.mood = mood;
-        this.g.wet.gain.setTargetAtTime(mood.reverb, now, 0.05);
-        this.g.delayOut.gain.setTargetAtTime(mood.delay, now, 0.05);
-        this.g.fb.gain.setTargetAtTime(mood.delayFeedback, now, 0.05);
+        this.g.wet.gain.setTargetAtTime(wetLevel(mood), now, 0.05);
+        this.g.delayOut.gain.setTargetAtTime(delayLevel(mood), now, 0.05);
+        this.g.fb.gain.setTargetAtTime(feedbackLevel(mood), now, 0.05);
       }
     }
     async stop() {

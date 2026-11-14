@@ -19,6 +19,13 @@
   let rendering = false;
   let deferredPrompt = null;
   let toastTimer = null;
+  let transportBusy = false;
+
+  /* Downshift guided session (not part of the shareable track state). */
+  const ds = {
+    active: false, source: "none", bpm: null, baseline: null,
+    samples: [], startedAt: 0, lastTempoStep: 0, saved: null, handle: null,
+  };
 
   const randSeed = () => 100000 + Math.floor(Math.random() * 900000);
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -49,7 +56,7 @@
     if (m && A.MOODS[m]) state.mood = m;
     state.volume = clamp(num("v", 80), 0, 100) / 100;
     const mode = q.get("mode");
-    if (["both", "audio", "visual"].indexOf(mode) !== -1) state.mode = mode;
+    if (["both", "audio", "visual", "downshift"].indexOf(mode) !== -1) state.mode = mode;
     const l = q.get("l");
     if (l && /^[01]{4}$/.test(l)) {
       state.layers = { pad: l[0] === "1", bass: l[1] === "1", arp: l[2] === "1", drums: l[3] === "1" };
@@ -107,7 +114,10 @@
     $("playBtn").disabled = visualOnly;
     $("hint").hidden = !visualOnly;
     if (visualOnly) $("hint").textContent = "Visuals-only mode. Switch to Both or Audio only to hear the track.";
-    $("badgeMode").textContent = { both: "Audio + visuals", audio: "Audio only", visual: "Visuals only" }[state.mode];
+    $("downshiftPanel").hidden = state.mode !== "downshift";
+    $("badgeMode").textContent = {
+      both: "Audio + visuals", audio: "Audio only", visual: "Visuals only", downshift: "Downshift session",
+    }[state.mode];
     syncTransport();
     updateBadges();
   }
@@ -161,6 +171,13 @@
     if (engine) await engine.stop();
   }
 
+  async function toggleTransport() {
+    if (transportBusy) return;   // rapid play/stop used to overlap AudioContexts
+    transportBusy = true;
+    try { state.playing ? await stop() : await play(); }
+    finally { transportBusy = false; }
+  }
+
   function applySettings() {
     if (engine) engine.setSettings(snapshot());
     updateBadges();
@@ -169,7 +186,7 @@
 
   async function generate(full) {
     state.seed = randSeed();
-    if (full) {
+    if (full && !ds.active) {
       state.key = Math.floor(Math.random() * 12);
       state.progression = Math.floor(Math.random() * A.PROGRESSIONS.length);
       const moods = Object.keys(A.MOODS);
@@ -184,10 +201,144 @@
   }
 
   async function setMode(mode) {
+    const prev = state.mode;
+    if (prev === "downshift" && mode !== "downshift") await endDownshift();
     state.mode = mode;
     if (mode === "visual" && state.playing) await stop();
+    if (mode === "downshift" && prev !== "downshift") await startDownshift(true);
     syncUI();
     updateURL();
+  }
+
+  /* ------------------------------ downshift ------------------------------ */
+  const tempoFor = (bpm) => clamp(Math.round(bpm * 0.82), 60, 92);
+
+  async function startDownshift(autoPlay) {
+    ds.saved = { mood: state.mood, bpm: state.bpm, layers: { ...state.layers } };
+    ds.active = true; ds.startedAt = performance.now(); ds.lastTempoStep = 0;
+    ds.samples = []; ds.baseline = null; ds.bpm = null; ds.source = "none";
+    state.mood = "vapor";
+    state.layers = { pad: true, bass: false, arp: true, drums: false };
+    state.bpm = 78;
+    renderer.downshift.active = true;
+    $("hrStatus").textContent = "No sensor. Glance at your Fitbit and type your BPM, or use the breathing pacer alone.";
+    updateHRUI(); drawChart(); syncUI(); updateURL();
+    if (autoPlay && !state.playing) await play();
+    toast("Downshift started · follow the breathing ring");
+  }
+
+  async function endDownshift() {
+    if (ds.handle) { try { ds.handle.disconnect(); } catch (_) {} ds.handle = null; }
+    ds.active = false; ds.source = "none"; ds.bpm = null; ds.baseline = null; ds.samples = [];
+    renderer.downshift.active = false;
+    if (ds.saved) {
+      state.mood = ds.saved.mood; state.bpm = ds.saved.bpm; state.layers = ds.saved.layers;
+      ds.saved = null;
+      applySettings();
+    }
+    updateHRUI(); drawChart();
+  }
+
+  function pushSample(bpm) {
+    ds.bpm = bpm;
+    if (ds.baseline === null) ds.baseline = bpm;
+    ds.samples.push({ t: performance.now(), bpm });
+    if (ds.samples.length > 120) ds.samples.shift();
+    updateHRUI(); drawChart();
+  }
+
+  function updateHRUI() {
+    $("hrValue").textContent = ds.bpm == null ? "--" : String(ds.bpm);
+    if (ds.baseline != null && ds.bpm != null) {
+      const d = ds.bpm - ds.baseline;
+      $("hrDelta").textContent = (d > 0 ? "+" : "") + d + " from start";
+      $("hrDelta").style.color = d <= 0 ? "var(--cyan)" : "var(--muted)";
+    } else {
+      $("hrDelta").textContent = "";
+    }
+    $("sessionTarget").textContent = ds.bpm != null
+      ? "Target tempo " + tempoFor(ds.bpm) + " BPM"
+      : "Target ~60 BPM";
+  }
+
+  function drawChart() {
+    const c = $("hrChart");
+    if (!c) return;
+    const ctx = c.getContext("2d");
+    const w = c.width, h = c.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = "rgba(255,255,255,0.09)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+    if (ds.samples.length === 0) return;
+    if (ds.samples.length === 1) {
+      ctx.fillStyle = "#35e6ff";
+      ctx.beginPath(); ctx.arc(w / 2, h / 2, 3, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
+    const vals = ds.samples.map((s) => s.bpm);
+    const min = Math.min(...vals) - 4, max = Math.max(...vals) + 4;
+    const span = Math.max(8, max - min);
+    ctx.strokeStyle = "rgba(53,230,255,0.92)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    vals.forEach((v, i) => {
+      const x = (i / (vals.length - 1)) * w;
+      const y = h - ((v - min) / span) * h;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    const lx = w, ly = h - ((vals[vals.length - 1] - min) / span) * h;
+    ctx.fillStyle = "#35e6ff";
+    ctx.beginPath(); ctx.arc(lx - 3, ly, 3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  async function connectHR() {
+    try {
+      $("hrStatus").textContent = "Choose your sensor in the browser picker…";
+      ds.handle = await window.SynthHR.connect(
+        (sample) => { ds.source = "ble"; pushSample(Math.round(sample.bpm)); },
+        (msg) => { $("hrStatus").textContent = msg; }
+      );
+    } catch (e) {
+      const reason = /cancel|no device|not found/i.test(e.message || "")
+        ? "No sensor picked."
+        : "Couldn't connect: " + e.message;
+      $("hrStatus").textContent = reason + " Fitbit Inspire 3 can't broadcast live HR — type your BPM above, or pair a BLE chest strap (Polar/Wahoo).";
+      toast("Sensor not connected");
+    }
+  }
+
+  function setManualBpm() {
+    const v = parseInt($("manualBpm").value, 10);
+    if (!Number.isFinite(v) || v < 25 || v > 240) { toast("Enter a BPM between 25 and 240"); return; }
+    ds.source = "manual";
+    pushSample(v);
+    $("manualBpm").value = "";
+    $("hrStatus").textContent = "Manual BPM from your Fitbit. Update it every minute or so.";
+  }
+
+  function fmtTime(sec) {
+    const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+    return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  }
+
+  function tickDownshift(now) {
+    const elapsed = (now - ds.startedAt) / 1000;
+    $("sessionTimer").textContent = fmtTime(elapsed);
+    const phase = (elapsed % 10) / 10;                 // 4s in / 6s out = 6 breaths/min
+    renderer.downshift.phase = phase;
+    renderer.downshift.label = phase < 0.4 ? "BREATHE IN" : "BREATHE OUT";
+    if (now - ds.lastTempoStep > 2500) {
+      ds.lastTempoStep = now;
+      const target = ds.bpm != null ? tempoFor(ds.bpm) : Math.max(60, 78 - Math.floor(elapsed / 12));
+      if (state.bpm !== target) {
+        state.bpm = clamp(state.bpm + Math.sign(target - state.bpm), 60, 150);
+        $("bpmRange").value = state.bpm;
+        $("bpmVal").textContent = state.bpm + " BPM";
+        applySettings();
+      }
+    }
   }
 
   /* ------------------------------ exports ------------------------------ */
@@ -230,12 +381,20 @@
 
   /* ------------------------------ render loop ------------------------------ */
   let last = performance.now();
+  let lastDraw = 0;
+  let drawAccum = 0;
   function loop(now) {
     const dt = (now - last) / 1000;
     last = now;
-    if (state.mode !== "audio" && renderer) {
+    if (ds.active) tickDownshift(now);
+    /* Cap canvas work at ~40 fps. The visualiser is gradient-heavy; leaving it
+     * uncapped can starve the audio scheduler on slower machines. */
+    drawAccum += dt;
+    if (state.mode !== "audio" && renderer && now - lastDraw >= 25) {
       const analyser = state.playing && engine ? engine.analyser : null;
-      renderer.frame(dt, analyser, state.bpm);
+      renderer.frame(Math.min(0.06, drawAccum), analyser, state.bpm);
+      drawAccum = 0;
+      lastDraw = now;
     }
     requestAnimationFrame(loop);
   }
@@ -245,7 +404,10 @@
     document.querySelectorAll(".seg").forEach((b) =>
       b.addEventListener("click", () => setMode(b.dataset.mode)));
 
-    $("playBtn").addEventListener("click", () => state.playing ? stop() : play());
+    $("playBtn").addEventListener("click", toggleTransport);
+    $("hrConnectBtn").addEventListener("click", connectHR);
+    $("manualSetBtn").addEventListener("click", setManualBpm);
+    $("manualBpm").addEventListener("keydown", (e) => { if (e.key === "Enter") setManualBpm(); });
     $("genBtn").addEventListener("click", () => generate(true));
     $("diceBtn").addEventListener("click", () => generate(false));
     $("copyBtn").addEventListener("click", copyLink);
@@ -281,7 +443,7 @@
     document.addEventListener("keydown", (e) => {
       const tag = (e.target.tagName || "").toLowerCase();
       if (tag === "input" || tag === "select" || tag === "textarea") return;
-      if (e.code === "Space") { e.preventDefault(); state.playing ? stop() : play(); }
+      if (e.code === "Space") { e.preventDefault(); toggleTransport(); }
       else if (e.key === "g" || e.key === "G") generate(true);
     });
 
@@ -305,14 +467,16 @@
     window.addEventListener("resize", () => { if (renderer) renderer.resize(); });
   }
 
-  function boot() {
+  async function boot() {
     readURL();
     populateSelects();
     renderer = new V.VisualRenderer($("canvas"));
     renderer.setSeed(state.seed);
     syncUI();
     updateURL();
+    updateHRUI();
     bind();
+    if (state.mode === "downshift") await startDownshift(false);
     requestAnimationFrame(loop);
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});

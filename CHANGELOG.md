@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-14 — v3: Downshift + crackle fix
+
+- Added a fourth **Downshift** mode: a 4s-in / 6s-out breathing ring, a slow tempo ramp toward ~60 BPM, and the Vapor preset with bass/drums muted. Session timer, live BPM readout, trend sparkline and delta from the session baseline.
+- Heart-rate input has three tiers: live BLE `0x180D` via `hr.js` (Web Bluetooth, parses 8/16-bit HR Measurement + RR intervals), manual BPM entry, and a no-sensor pacer. Fitbit Inspire 3 users use manual entry — that model has no live HR broadcast, and the legacy Fitbit Web API was turned off on 2026-11-02 (Google Health API scopes are restricted and cloud-based).
+- Breathing overlay is excluded from PNG wallpaper exports. Leaving Downshift restores the previous mood, tempo and layer settings.
+- Fixed intermittent audio crackling: normalised the 2.6 s reverb impulse, added a soft tanh wave-shaper limiter after the compressor, capped delay feedback at 0.42, lowered master/voice peaks, increased the scheduling lookahead to 0.4 s with a resync guard against late notes, capped canvas drawing at ~40 fps, and serialised rapid play/stop toggles.
+- Bumped `sw.js` to `synthwave-v3` and added `hr.js` to the precache.
+
 ## 2026-11-14 — v2: more moods + modern visualiser
 
 - Expanded moods from 3 to **8**: Dream, Drive, Night, Sunset, Outrun, Vapor, Chrome, Noir. Each is a full arrangement preset (waveforms, filter cutoff, reverb/delay mix and feedback, pad detune/level, arp density/octave/shimmer, bass pattern, swing, kick/snare tuning) plus a colour tint the visualiser picks up. `setSettings` now also updates delay feedback when the mood changes.

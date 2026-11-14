@@ -42,6 +42,7 @@
       this.freq = null; this.wave = null;
       this.sm = { bass: 0, mid: 0, treble: 0, energy: 0 };
       this.pulse = 0; this.lastBass = 0; this.lastBeat = 0;
+      this.downshift = { active: false, phase: 0, label: "BREATHE IN" };
       this.a = { energy: 0, bass: 0, mid: 0, treble: 0, pulse: 0, freq: null, wave: null };
       this.makeGrain();
       this.setSeed(1);
@@ -190,7 +191,7 @@
     }
 
     /* All coordinates are relative to w/h so a 1920x1080 export matches. */
-    draw(ctx, w, h, time, a) {
+    draw(ctx, w, h, time, a, isExport) {
       const p = this.palette;
       const hy = h * 0.60;
       const skyTop = hex(p.skyTop), skyMid = hex(p.skyMid), skyLow = hex(p.skyLow);
@@ -461,6 +462,36 @@
       vig.addColorStop(0, "rgba(0,0,0,0)");
       vig.addColorStop(1, "rgba(0,0,0,0.55)");
       ctx.fillStyle = vig; ctx.fillRect(0, 0, w, h);
+
+      /* --- 17. downshift breathing pacer (never baked into PNG exports) --- */
+      if (!isExport && this.downshift.active) {
+        const d = this.downshift;
+        ctx.fillStyle = "rgba(5, 3, 20, 0.34)";
+        ctx.fillRect(0, 0, w, h);
+        const bx = w * 0.5, by = h * 0.44;
+        const base = Math.min(w, h) * 0.16;
+        const amp = Math.min(w, h) * 0.085;
+        const swell = d.phase < 0.4 ? d.phase / 0.4 : 1 - (d.phase - 0.4) / 0.6;
+        const rad = base + amp * swell;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const fill = ctx.createRadialGradient(bx, by, 0, bx, by, rad);
+        fill.addColorStop(0, rgba(mix(glowC, [255, 255, 255], 0.25), 0.09));
+        fill.addColorStop(1, rgba(glowC, 0));
+        ctx.fillStyle = fill;
+        ctx.fillRect(bx - rad, by - rad, rad * 2, rad * 2);
+        ctx.strokeStyle = rgba(mix(glowC, [255, 255, 255], 0.4), 0.62);
+        ctx.lineWidth = Math.max(2, w / 520);
+        ctx.shadowColor = rgba(glowC, 0.9);
+        ctx.shadowBlur = 26 * (w / 900);
+        ctx.beginPath(); ctx.arc(bx, by, rad, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        ctx.font = "700 " + Math.max(11, Math.round(w * 0.012)) + "px ui-monospace, Menlo, monospace";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.fillText(d.label, bx, by + rad + Math.max(24, h * 0.05));
+        ctx.textAlign = "start";
+      }
     }
 
     exportPng() {
@@ -468,7 +499,7 @@
       const c = document.createElement("canvas");
       c.width = w; c.height = h;
       const cx = c.getContext("2d");
-      this.draw(cx, w, h, this.t, this.synthetic(this.t));
+      this.draw(cx, w, h, this.t, this.synthetic(this.t), true);
       return new Promise((resolve) => c.toBlob(resolve, "image/png"));
     }
   }
