@@ -36,9 +36,11 @@ Relaxation support only, not a medical device. No HR data leaves the device; not
 
 ## Audio quality
 
-The engine uses a soft tanh limiter, a normalised convolution reverb IR, capped delay feedback and lower voice peaks so dense bars never hit 0 dBFS. Canvas work is capped at ~40 fps.
+The engine uses a soft tanh limiter, a normalised convolution reverb IR, capped delay feedback and lower voice peaks so dense bars never hit 0 dBFS. Every percussive voice has a 3-4 ms attack ramp, so no voice starts on a step discontinuity (an instant jump onto a random noise sample was the source of the remaining clicks).
 
-Scheduling runs off a **Web Worker clock** (with a `setInterval` fallback) so a heavy canvas frame can't delay it. When the PWA is minimised, browsers throttle timers to ~1 s; the engine then deepens its buffer to 4 s and **fast-forwards the missed bar grid** instead of snapping to "now" — snapping used to schedule 2.4 s bars every 1 s, which overlapped them and crackled. `visibilitychange` fills that buffer immediately, and `statechange`/visibility regain resume a suspended AudioContext. The reverb impulse and wave-shaper are kept deliberately light for mobile CPUs.
+Scheduling is driven by an **AudioWorkletProcessor** running on the audio rendering thread, not a JS timer. Browsers clamp `setInterval` — even in a Web Worker — to >=1 s (sometimes 1/min) when the tab is hidden, which starves the scheduler. Audio-thread ticks are delivered by the main thread's event loop instead. Worker and interval clocks remain as fallbacks, with a 12 s hidden lookahead so they cannot starve either. Missed bars are **fast-forwarded on the grid** rather than snapped to "now", so throttled tabs never overlap bars.
+
+Playback uses `latencyHint: "playback"` for larger, underrun-resistant buffers on mobile, resumes a suspended or interrupted context even while minimised (mobile audio focus), and does no canvas work at all when `document.hidden`. The reverb impulse is kept short (1.2 s) for mobile CPUs.
 
 ## Keyboard
 

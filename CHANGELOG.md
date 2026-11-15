@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-15 — v5: fix the remaining crackle when minimised
+
+- **Clicks removed.** Measured offline renders showed no clipping (peak 0.87) but large sample-to-sample jumps (up to 0.54) on every drum hit: `noiseHit`, `kick` and the snare body started at full amplitude on a random first noise sample, which is a step discontinuity. All three now have a 3-4 ms attack ramp; `noiseHit`'s attack is clamped to 30% of a short hat so it stays snappy.
+- **Clock moved onto the audio thread.** A `setInterval` - even in a Web Worker - is clamped to >=1 s (sometimes 1/min) when the tab is hidden. Scheduling is now driven by an **AudioWorkletProcessor** that posts ticks from the audio rendering thread; those are delivered by the main thread's event loop, not a throttled timer. Worker and interval clocks remain as fallbacks (`tick()` is idempotent). Hidden lookahead raised to 12 s and the bar cap to 16 for those fallbacks.
+- **Larger audio buffers.** `new AudioContext({ latencyHint: "playback" })` instead of the default "interactive" - far fewer underruns on mobile / when the process is backgrounded. Graceful fallback if a browser rejects the option.
+- **Resume while hidden.** `onstatechange` now resumes a `suspended`/`interrupted` context even when minimised (mobile audio focus), with a retry cap; previously it deliberately declined, which killed audio on minimise.
+- **Less CPU:** reverb impulse 1.8 s → 1.2 s; the visualiser now does zero canvas work while `document.hidden`.
+- Bumped `sw.js` to `synthwave-v5`.
+
 ## 2026-11-14 — v4: background-audio crackle fix
 
 - Fixed crackling when the PWA is minimised. The old resync snapped `nextBarTime` back to `now` on every late tick; with hidden-tab timer throttling (~1 s) that scheduled 2.4 s bars roughly 1 s apart, overlapping them into a dense burst. The scheduler now **fast-forwards the missed bar grid** (advancing bar index and time by whole bar durations) and never schedules a note in the past.

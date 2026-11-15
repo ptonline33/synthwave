@@ -387,6 +387,9 @@
     const dt = (now - last) / 1000;
     last = now;
     if (ds.active) tickDownshift(now);
+    /* No canvas work at all while the PWA is minimised: RAF should already be
+     * paused there, but some mobile browsers still fire occasional frames. */
+    if (document.hidden) { requestAnimationFrame(loop); return; }
     /* Cap canvas work at ~40 fps. The visualiser is gradient-heavy; leaving it
      * uncapped can starve the audio scheduler on slower machines. */
     drawAccum += dt;

@@ -157,7 +157,7 @@
 
     const reverbSend = ctx.createGain();
     const conv = ctx.createConvolver();
-    conv.buffer = impulse(ctx, 1.8, 2.8);
+    conv.buffer = impulse(ctx, 1.2, 2.8);   // shorter IR = less FFT work on mobile
     const wet = ctx.createGain(); wet.gain.value = wetLevel(mood);
     reverbSend.connect(conv); conv.connect(wet); wet.connect(master);
 
@@ -250,7 +250,9 @@
     o.frequency.setValueAtTime(start, t);
     o.frequency.exponentialRampToValueAtTime(start * 0.28, t + 0.11);
     const amp = ctx.createGain();
-    amp.gain.setValueAtTime(0.75 * g.mood.drumGain, t);
+    const attack = Math.min(0.003, decay * 0.1);
+    amp.gain.setValueAtTime(0.0001, t);
+    amp.gain.exponentialRampToValueAtTime(0.75 * g.mood.drumGain, t + attack);
     amp.gain.exponentialRampToValueAtTime(0.0001, t + decay);
     o.connect(amp); amp.connect(g.master);
     o.start(t); o.stop(t + decay + 0.02);
@@ -263,7 +265,12 @@
     filt.type = type; filt.frequency.value = freq;
     if (type === "bandpass") filt.Q.value = 0.8;
     const amp = ctx.createGain();
-    amp.gain.setValueAtTime(gain, t);
+    /* White noise starts on a random sample. Jumping straight from silence to
+     * that sample is a step discontinuity - an audible click on every hat and
+     * snare. A 4 ms attack removes it without dulling the transient. */
+    const attack = Math.min(0.004, dur * 0.3);
+    amp.gain.setValueAtTime(0.0001, t);
+    amp.gain.exponentialRampToValueAtTime(gain, t + attack);
     amp.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(filt); filt.connect(amp); amp.connect(g.master);
     if (sendReverb) amp.connect(g.reverbSend);
@@ -278,7 +285,9 @@
     o.frequency.setValueAtTime(190, t);
     o.frequency.exponentialRampToValueAtTime(120, t + 0.1);
     const amp = ctx.createGain();
-    amp.gain.setValueAtTime(0.22 * g.mood.drumGain, t);
+    const attack = Math.min(0.003, decay * 0.1);
+    amp.gain.setValueAtTime(0.0001, t);
+    amp.gain.exponentialRampToValueAtTime(0.22 * g.mood.drumGain, t + attack);
     amp.gain.exponentialRampToValueAtTime(0.0001, t + decay * 0.7);
     o.connect(amp); amp.connect(g.master);
     o.start(t); o.stop(t + decay * 0.8);
@@ -338,23 +347,47 @@
   }
 
   /* ------------------------------ live engine ------------------------------ */
+
+  /* Clock that lives on the AUDIO RENDERING THREAD. A setInterval - even
+   * inside a Web Worker - is clamped to >=1 s (and sometimes 1/min) when the
+   * tab is hidden, which starves the scheduler and produces gaps and bursts.
+   * An AudioWorkletProcessor keeps running as long as the AudioContext does,
+   * and posts ticks that are delivered by the main thread's event loop rather
+   * than by a timer, so minimising the PWA cannot stall scheduling. */
+  const CLOCK_PROCESSOR = `
+    class SynthTickProcessor extends AudioWorkletProcessor {
+      constructor() { super(); this.quanta = 0; }
+      process() {
+        // 128 frames per quantum; 20 quanta ~= 50 ms at 48 kHz.
+        if (++this.quanta >= 20) { this.quanta = 0; this.port.postMessage("tick"); }
+        return true;
+      }
+    }
+    registerProcessor("synth-tick", SynthTickProcessor);
+  `;
+
   class SynthEngine {
     constructor(settings) {
       this.settings = settings;
-      this.ctx = null; this.g = null; this.timer = null; this.clock = null;
+      this.ctx = null; this.g = null;
+      this.timer = null; this.clock = null; this.ticker = null;
       this.bar = 0; this.nextBarTime = 0;
       this.playing = false; this.onBar = null;
-      this.lookahead = 1.5;          // seconds queued while visible
-      this.hiddenLookahead = 4.0;    // extra cushion when minimised
+      this.lookahead = 2.0;          // seconds queued while visible
+      this.hiddenLookahead = 12.0;   // cushion for throttled fallback clocks
       this.resumeTries = 0;
     }
 
-    /* A Worker clock is immune to main-thread jank (canvas frames, layout).
-     * Hidden tabs throttle timers to ~1 s, so the lookahead below must stay
-     * bigger than that. Falls back to a plain interval if Workers are blocked. */
+    /* Primary clock = AudioWorklet (audio thread). A Worker is created
+     * synchronously as a safety net so the worklet's async module load can
+     * never leave the scheduler unclocked - and never blocks play()/stop().
+     * tick() is idempotent because nextBarTime advances. */
     startClock() {
-      if (this.clock || this.timer) return;
-      if (typeof global.Worker === "function") {
+      const ctx = this.ctx;
+      if (!ctx || !this.playing) return;
+
+      // Synchronous Worker safety net.
+      if (!this.clock && typeof global.Worker === "function") {
         try {
           const src = "let id=setInterval(()=>postMessage('tick'),25);" +
                       "onmessage=e=>{if(e.data==='stop')clearInterval(id)}";
@@ -362,12 +395,39 @@
           this.clock = new Worker(url);
           URL.revokeObjectURL(url);
           this.clock.onmessage = () => this.tick();
-          return;
         } catch (_) { this.clock = null; }
       }
-      this.timer = setInterval(() => this.tick(), 25);
+      // Audio-thread clock: set up in the background, no awaits in play().
+      if (!this.ticker && ctx.audioWorklet) this._setupWorklet(ctx);
+      if (!this.ticker && !this.clock && !this.timer) {
+        this.timer = setInterval(() => this.tick(), 25);
+      }
+    }
+
+    async _setupWorklet(ctx) {
+      try {
+        const url = URL.createObjectURL(new Blob([CLOCK_PROCESSOR],
+          { type: "application/javascript" }));
+        await ctx.audioWorklet.addModule(url);
+        URL.revokeObjectURL(url);
+        // stop() may have run while addModule was in flight.
+        if (!this.playing || this.ctx !== ctx || this.ticker) return;
+        const ticker = new AudioWorkletNode(ctx, "synth-tick",
+          { numberOfOutputs: 1, outputChannelCount: [1] });
+        // A node must reach the destination for process() to be called.
+        // Route it through a silent gain so it adds nothing to the mix.
+        const mute = ctx.createGain(); mute.gain.value = 0;
+        ticker.connect(mute); mute.connect(ctx.destination);
+        ticker.port.onmessage = () => this.tick();
+        this.ticker = ticker;
+        this.tick();
+      } catch (_) { this.ticker = null; }
     }
     stopClock() {
+      if (this.ticker) {
+        try { this.ticker.port.onmessage = null; this.ticker.disconnect(); } catch (_) {}
+        this.ticker = null;
+      }
       if (this.clock) { try { this.clock.terminate(); } catch (_) {} this.clock = null; }
       if (this.timer) { clearInterval(this.timer); this.timer = null; }
     }
@@ -376,7 +436,11 @@
       if (this.playing) return;
       const Ctx = global.AudioContext || global.webkitAudioContext;
       if (!Ctx) throw new Error("Web Audio is not supported in this browser.");
-      this.ctx = new Ctx();
+      // "playback" requests a larger render buffer: far fewer underruns on
+      // mobile / when the process is backgrounded. Latency is irrelevant for a
+      // generative music player, so this is the right trade-off.
+      try { this.ctx = new Ctx({ latencyHint: "playback" }); }
+      catch (_) { this.ctx = new Ctx(); }
       try {
         const resumed = this.ctx.resume();
         if (resumed && typeof resumed.catch === "function") resumed.catch(() => {});
@@ -384,8 +448,9 @@
       this.ctx.onstatechange = () => {
         if (!this.playing || !this.ctx) return;
         const st = this.ctx.state;
-        const hidden = typeof document !== "undefined" && document.hidden;
-        if ((st === "suspended" || st === "interrupted") && !hidden && this.resumeTries++ < 4) {
+        // Resume even while hidden: on mobile the OS can interrupt audio
+        // focus when the app is minimised. A cap prevents a resume loop.
+        if ((st === "suspended" || st === "interrupted") && this.resumeTries++ < 8) {
           try {
             const r = this.ctx.resume();
             if (r && typeof r.catch === "function") r.catch(() => {});
@@ -397,8 +462,8 @@
       this.nextBarTime = this.ctx.currentTime + 0.08;
       this.playing = true;
       this.resumeTries = 0;
-      this.startClock();
-      this.tick();
+      this.startClock();        // synchronous Worker clock; worklet set up in background
+      this.tick();              // schedule immediately
     }
 
     tick() {
@@ -414,12 +479,12 @@
        * hidden tab schedule 2.4 s bars every 1 s: they overlapped, piled up
        * and crackled. Skipping keeps every bar on its original beat. */
       let skipped = 0;
-      while (this.nextBarTime < now - 0.005 && skipped++ < 128) {
+      while (this.nextBarTime < now - 0.005 && skipped++ < 256) {
         this.nextBarTime += barDur;
         this.bar++;
       }
       let guard = 0;
-      while (this.nextBarTime < horizon && guard++ < 8) {
+      while (this.nextBarTime < horizon && guard++ < 16) {
         const at = Math.max(this.nextBarTime, now + 0.005);
         const rng = mulberry32((s.seed + this.bar * 7919) >>> 0);
         scheduleBar(this.ctx, this.g, s, this.bar, at, rng);
